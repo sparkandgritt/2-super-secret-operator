@@ -34,6 +34,7 @@ import (
 	secretsv1alpha1 "com.mithung.dev/supersecret/api/v1alpha1"
 	"com.mithung.dev/supersecret/internal/controller"
 	//+kubebuilder:scaffold:imports
+	//gcloud imports
 )
 
 var (

@@ -35,6 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	secretsv1alpha1 "com.mithung.dev/supersecret/api/v1alpha1"
+
+	"google.golang.org/api/iam/v1"
 )
 
 var KubeClient *kubernetes.Clientset
@@ -131,6 +133,55 @@ func (r *SuperSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		log.Log.Error(err, "error gound")
 	}
 	fmt.Println("now created secret", result.Name)
+
+	fmt.Println("now lets try to get all roles in gcloud")
+
+	// create a new IAM client
+	iamclient, err := iam.NewService(ctx)
+	if err != nil {
+		fmt.Printf("Error creating IAM client: %v", err)
+	}
+
+	name := "projects/kubebuilder-try-1/roles/mg-my-role" // TODO: Update placeholder value.
+
+	resp, err := iamclient.Roles.Get(name).Context(ctx).Do()
+	if err != nil {
+		log.Log.Error(err, "error in roles")
+	}
+
+	// TODO: Change code below to process the `resp` object:
+	fmt.Printf("%#v\n", resp)
+
+	// bs, _ := json.Marshal(iamclient.Roles.)
+	// fmt.Println(string(bs))
+	// 	// loop over elements of slice
+	// for _, m := range iamclient.Roles.List() {
+
+	//     // m is a map[string]interface.
+	//     // loop over keys and values in the map.
+	//     for k, v := range m {
+	//         fmt.Println(k, "value is", v)
+	//     }
+	// }
+	// // define the role details
+	// role := &iam.Role{
+	// 	Title:       "my-new-role",
+	// 	Description: "This is my new role",
+	// 	Stage:       "GA",
+	// 	IncludedPermissions: []string{
+	// 		"iam.roles.get",
+	// 		"iam.roles.list",
+	// 		"iam.roles.create",
+	// 		"iam.roles.delete",
+	// 	},
+	// }
+
+	// // create the role
+	// role, err = iamclient.Roles.List()
+	// if err != nil {
+	// 	fmt.Printf("Error creating role: %v", err)
+
+	// }
 
 	return ctrl.Result{}, nil
 }
