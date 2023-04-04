@@ -1,0 +1,69 @@
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+
+    "google.golang.org/api/iam/v1"
+    "google.golang.org/api/storage/v1"
+    "google.golang.org/api/option"
+    "k8s.io/apimachinery/pkg/runtime"
+    "sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// GCPConfig represents the configuration for creating an HMAC key in GCP.
+type GCPConfig struct {
+    ProjectID     string
+    ServiceAccKey string
+}
+
+// CreateHMACKey creates an HMAC key in GCP for the specified project and service account.
+func CreateHMACKey(ctx context.Context, config *GCPConfig) (*storage.HmacKeyMetadata, error) {
+    // Create a new IAM service client using the provided context and default credentials.
+    iamService, err := iam.NewService(ctx, option.WithScopes(iam.CloudPlatformScope))
+    if err != nil {
+        return nil, fmt.Errorf("failed to create IAM service client: %v", err)
+    }
+
+    // Create a new HMAC key for the specified service account.
+    key, err := iamService.Projects.ServiceAccounts.Keys.Create("projects/"+config.ProjectID+"/serviceAccounts/"+config.ServiceAccKey, &iam.CreateServiceAccountKeyRequest{
+        PrivateKeyType: "TYPE_GOOGLE_CREDENTIALS_FILE",
+    }).Do()
+    if err != nil {
+        return nil, fmt.Errorf("failed to create HMAC key for service account %q: %v", config.ServiceAccKey, err)
+    }
+
+    // Create a new Storage service client using the provided context and default credentials.
+    storageService, err := storage.NewService(ctx, option.WithScopes(storage.ScopeReadWrite))
+    if err != nil {
+        return nil, fmt.Errorf("failed to create Storage service client: %v", err)
+    }
+
+    // Create a new HMAC key metadata for the newly created HMAC key.
+    metadata, err := storageService.Projects.ServiceAccount.Get(config.ProjectID, "projects/-/serviceAccounts/"+config.ServiceAccKey+"/hmacKeys/"+key.Name).Do()
+    if err != nil {
+        return nil, fmt.Errorf("failed to get HMAC key metadata for key %q: %v", key.Name, err)
+    }
+
+    return metadata, nil
+}
+
+// CreateHMACKeyIfInteroperable creates an HMAC key in GCP for the specified project and service account if the
+// `interoperability` field is set to true in the specified Kubernetes custom resource.
+func CreateHMACKeyIfInteroperable(ctx context.Context, obj runtime.Object, client client.Client, config *GCPConfig) error {
+    // Get the `interoperability` field from the custom resource.
+    // Assumes that the custom resource has a "spec" field that contains an "interoperability" field.
+    spec, ok := obj.(interface {
+        GetSpec() interface{}
+    }).GetSpec().(map[string]interface{})
+    if !ok {
+        return fmt.Errorf("unable to get spec from custom resource")
+    }
+    interoperable, ok := spec["interoperability"].(bool)
+    if !ok || !interoperable {
+        // If `interoperability` is not set to true, then do nothing.
+        return nil
+    }
+
+    // Get the service account email address from the custom resource.
+    // Assumes that the custom resource has a "spec" field that contains a "serviceAccountEmail" field.
+    serviceAccountEmail, ok :=
